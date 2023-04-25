@@ -1,3 +1,5 @@
+import copy
+import logging
 from ryu.app.wsgi import WSGIApplication
 from ryu.base import app_manager
 from ryu.cmd import manager
@@ -5,9 +7,10 @@ from ryu.controller import ofp_event
 from ryu.controller.handler import set_ev_cls, CONFIG_DISPATCHER, MAIN_DISPATCHER
 from ryu.ofproto import ofproto_v1_3
 from ryu.topology import event
-from ryu.topology.api import get_host, get_switch, get_link
+from ryu.topology.api import get_switch, get_link
 from rest import RestController
-from ryu.lib import dpid, hub
+from ryu.lib import hub
+import utils
 
 
 class SimpleSwitch13(app_manager.RyuApp):
@@ -18,41 +21,20 @@ class SimpleSwitch13(app_manager.RyuApp):
         super(SimpleSwitch13, self).__init__(*args, **kwargs)
         self.topology_api_app = self
         wsgi = kwargs["wsgi"]
-        self.switches = {}
         self.myapp = wsgi
         wsgi.register(RestController, {"controller": self})
 
         self.lock = hub.Event()
         self.flows = []
 
-        self.rules = {}
+        self.orig_link_data = utils.load_data("sample1.txt")
+        self.link_data = copy.deepcopy(self.orig_link_data)
+        # self.link_data = utils.load_data("sample1.txt")
 
-        self.hosts = {}
-        self.adj, self.link_data = self.load_data("sample.txt")
-        # self.ip_to_host = {}
-        # self.mac_to_host = {}
-        # self.links = {}
-        # self.link_ports = {}
-
-    def load_data(self, file):
-        "Makes adjacency list and store the link data (bw, delay)"
-        with open(file, "r") as f:
-            data = {}
-            adj = {}
-            lines = f.read().strip().split("\n")
-            lines = [line.split(" ") for line in lines]
-            for row in lines:
-                node1, node2 = row[0], row[1]
-                data[(node1, node2)] = [int(row[2]), int(row[3])]
-                data[(node2, node1)] = [int(row[2]), int(row[3])]
-                if node1 not in adj:
-                    adj[node1] = []
-                if node2 not in adj:
-                    adj[node2] = []
-                adj[node1].append(node2)
-                adj[node2].append(node1)
-
-        return adj, data
+        self.hosts = {}  # h1: host object
+        self.switches = {}  # dpid: datapath object
+        self.adj = {}  # adjacency lists
+        self.rules = {}  # dpid: flow rules
 
     def get_host_by_mac(self, host_mac):
         host_mac = host_mac.replace(":", "")
@@ -63,60 +45,39 @@ class SimpleSwitch13(app_manager.RyuApp):
             if v.ipv4 and host_ipv4 in v.ipv4:
                 return k
         return None
-        ofproto = datapath.ofproto
-        parser = datapath.ofproto_parser
-
-        inst = [parser.OFPInstructionActions(ofproto.OFPIT_APPLY_ACTIONS, actions)]
-        if buffer_id:
-            mod = parser.OFPFlowMod(
-                datapath=datapath,
-                buffer_id=buffer_id,
-                priority=priority,
-                match=match,
-                instructions=inst,
-            )
-        else:
-            mod = parser.OFPFlowMod(
-                datapath=datapath, priority=priority, match=match, instructions=inst
-            )
-        datapath.send_msg(mod)
 
     @set_ev_cls(event.EventHostAdd)
     def host_add_handler(self, ev):
-        self.hosts[self.get_host_by_mac(ev.host.mac)] = ev.host
         print(f"added {self.get_host_by_mac(ev.host.mac)}")
-        # mac_address = ev.host.mac.replace(":", "")
-        # host_id = f"h{int(mac_address, 16)}"
-
-        # print(ev.host.ipv4, ev.host.ipv6)
-
-        # self.mac_to_host[ev.host.mac] = host_id
-        # # self.ip_to_host[ev.host.ipv4] = host_id
-
-        # switch_id = f"s{ev.host.port.dpid}"
-        # self.link_ports.update({
-        #     (switch_id, host_id): (ev.host.port.port_no, 1),
-        #     (host_id, switch_id): (1, ev.host.port.port_no)
-        # })
+        self.hosts[self.get_host_by_mac(ev.host.mac)] = ev.host
+        host_name, switch_name = (
+            self.get_host_by_mac(ev.host.mac),
+            f"s{ev.host.port.dpid}",
+        )
+        # each host connected to exactly one switch
+        self.adj[host_name] = {switch_name}
+        if switch_name not in self.adj:
+            self.adj[switch_name] = {host_name}
+        else:
+            self.adj[switch_name].add(host_name)
+        print("adj:", self.adj)
 
     @set_ev_cls(event.EventSwitchEnter)
     def switch_add_handler(self, ev):
-        self.switches[ev.switch.dp.id] = ev.switch.dp
         print(f"added s{ev.switch.dp.id}")
-        pass
-        # links = get_all_link(self.topology_api_app)
-        # self.link_ports.update(
-        #     {
-        #         (link.src.dpid, link.dst.dpid): (link.src.port_no, link.dst.port_no)
-        #         for link in links
-        #     }
-        # )
-        # self.link_ports.update(
-        #     {
-        #         (link.dst.dpid, link.src.dpid): (link.dst.port_no, link.src.port_no)
-        #         for link in links
-        #     }
-        # )
+        self.switches[ev.switch.dp.id] = ev.switch.dp
+        switch_name = f"s{ev.switch.dp.id}"
+        links = get_link(self.topology_api_app, ev.switch.dp.id)
+        links = {f"s{link.dst.dpid}" for link in links}
+
+        for link in links.union({switch_name}):
+            if link not in self.adj:
+                self.adj[link] = set()
+
+        self.adj[switch_name].update(links)
+        for link in links:
+            self.adj[link].add(switch_name)
+        print("adj:", self.adj)
 
     def add_rule(self, datapath, in_port, src_mac, dst_mac, out_port):
         ofproto = datapath.ofproto
@@ -162,38 +123,76 @@ class SimpleSwitch13(app_manager.RyuApp):
         # Send the flow mod message to the switch
         datapath.send_msg(flow_mod)
 
-    def add_path_rules(self, path):
+    def add_path_rules(self, path, req_bw, new_connection=False):
         rules = {}
+
         if len(path) < 3:
-            print("path too short")
             return rules
+
         src, dst = self.hosts[path[0]], self.hosts[path[-1]]
         in_port = src.port.port_no
         for i in range(1, len(path) - 2):
             dpid = int(path[i][1:])
-            dp = get_switch(self.topology_api_app, dpid)[0].dp
             links = get_link(self.topology_api_app, dpid)
             link = [link for link in links if link.dst.dpid == int(path[i + 1][1:])][0]
+            if new_connection:
+                rules[path[i]] = [
+                    {
+                        "match": {
+                            "in_port": in_port,
+                            "src_mac": src.mac,
+                            "dst_mac": dst.mac,
+                        },
+                        "action": {
+                            "out_port": link.src.port_no,
+                        },
+                    }
+                ]
+            else:
+                dp = get_switch(self.topology_api_app, dpid)[0].dp
+                self.add_rule(
+                    datapath=dp,
+                    in_port=in_port,
+                    src_mac=src.mac,
+                    dst_mac=dst.mac,
+                    out_port=link.src.port_no,
+                )
+                self.link_data[(path[i - 1], path[i])][0] -= req_bw
+                self.link_data[(path[i], path[i - 1])][0] -= req_bw
+                rules[path[i]] = self.rules[dpid]
+
+            in_port = link.dst.port_no
+
+        dpid = int(path[-2][1:])
+        if new_connection:
+            rules[path[-2]] = [
+                {
+                    "match": {
+                        "in_port": in_port,
+                        "src_mac": src.mac,
+                        "dst_mac": dst.mac,
+                    },
+                    "action": {
+                        "out_port": dst.port.port_no,
+                    },
+                }
+            ]
+        else:
+            dp = get_switch(self.topology_api_app, dpid)[0].dp
             self.add_rule(
                 datapath=dp,
                 in_port=in_port,
                 src_mac=src.mac,
                 dst_mac=dst.mac,
-                out_port=link.src.port_no,
+                out_port=dst.port.port_no,
             )
-            rules[path[i]] = self.rules[dpid]
-            in_port = link.dst.port_no
+            self.link_data[(path[-3], path[-2])][0] -= req_bw
+            self.link_data[(path[-2], path[-3])][0] -= req_bw
+            rules[path[-2]] = self.rules[dpid]
 
-        dpid = int(path[-2][1:])
-        dp = get_switch(self.topology_api_app, dpid)[0].dp
-        self.add_rule(
-            datapath=dp,
-            in_port=in_port,
-            src_mac=src.mac,
-            dst_mac=dst.mac,
-            out_port=dst.port.port_no,
-        )
-        rules[path[-2]] = self.rules[dpid]
+            self.link_data[(path[-2], path[-1])][0] -= req_bw
+            self.link_data[(path[-1], path[-2])][0] -= req_bw
+
         return rules
 
     def send_flow_request(self, datapath):
@@ -222,6 +221,9 @@ class SimpleSwitch13(app_manager.RyuApp):
     @set_ev_cls(ofp_event.EventOFPSwitchFeatures, CONFIG_DISPATCHER)
     def switch_features_handler(self, ev):
         datapath = ev.msg.datapath
+        self.add_flow(datapath, 0)
+
+    def add_flow(self, datapath, priority, buffer_id=None):
         ofproto = datapath.ofproto
         parser = datapath.ofproto_parser
 
@@ -233,27 +235,27 @@ class SimpleSwitch13(app_manager.RyuApp):
         # truncated packet data. In that case, we cannot output packets
         # correctly.  The bug has been fixed in OVS v2.1.0.
         match = parser.OFPMatch()
-        actions = [
-            parser.OFPActionOutput(ofproto.OFPP_CONTROLLER, ofproto.OFPCML_NO_BUFFER)
+        action = parser.OFPActionOutput(
+            ofproto.OFPP_CONTROLLER, ofproto.OFPCML_NO_BUFFER
+        )
+
+        instructions = [
+            parser.OFPInstructionActions(ofproto.OFPIT_APPLY_ACTIONS, [action])
         ]
-        self.add_flow(datapath, 0, match, actions)
-
-    def add_flow(self, datapath, priority, match, actions, buffer_id=None):
-        ofproto = datapath.ofproto
-        parser = datapath.ofproto_parser
-
-        inst = [parser.OFPInstructionActions(ofproto.OFPIT_APPLY_ACTIONS, actions)]
         if buffer_id:
             mod = parser.OFPFlowMod(
                 datapath=datapath,
                 buffer_id=buffer_id,
                 priority=priority,
                 match=match,
-                instructions=inst,
+                instructions=instructions,
             )
         else:
             mod = parser.OFPFlowMod(
-                datapath=datapath, priority=priority, match=match, instructions=inst
+                datapath=datapath,
+                priority=priority,
+                match=match,
+                instructions=instructions,
             )
         datapath.send_msg(mod)
 

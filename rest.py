@@ -1,6 +1,5 @@
-from ryu.topology.api import get_all_host, get_switch
+from ryu.topology.api import get_switch
 from ryu.app.wsgi import ControllerBase, route
-from ryu.controller import controller, dpset
 from webob import Response
 import json
 import utils
@@ -54,13 +53,28 @@ class RestController(ControllerBase):
             src = self.controller.get_host_by_mac(src)
             dst = self.controller.get_host_by_mac(dst)
 
-        dist, paths = utils.dijkstra(
+        # Updated path
+        _, paths = utils.dijkstra(
             src, req_bw, self.controller.adj, self.controller.link_data
         )
         path = paths[dst]
-        rules = self.controller.add_path_rules(path)
-        print(rules)
-        data = {"rules": rules, "path": path}
+        rules = self.controller.add_path_rules(path, req_bw)
+
+        # Original path
+        _, orig_paths = utils.dijkstra(
+            src, req_bw, self.controller.adj, self.controller.orig_link_data
+        )
+        orig_path = orig_paths[dst]
+        orig_rules = self.controller.add_path_rules(
+            orig_path, req_bw, new_connection=True
+        )
+
+        data = {
+            "rules": rules,
+            "path": path,
+            "orig_rules": orig_rules,
+            "orig_path": orig_path,
+        }
         return Response(json_body=data, content_type="application/json")
 
     # Only for veiwing purposes
@@ -70,8 +84,6 @@ class RestController(ControllerBase):
         dp = get_switch(self.controller.topology_api_app, dpid)[0].dp
         self.controller.send_flow_request(dp)
         self.controller.lock.wait()
-        print(self.controller.flows)
-        print(type(self.controller.flows))
         return Response(
             json_body=self.controller.flows, content_type="application/json"
         )

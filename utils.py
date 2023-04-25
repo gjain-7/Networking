@@ -1,9 +1,6 @@
 import heapq
 from typing import *
 
-import heapq
-
-
 def cost(bandwidth, delay):
     return delay + 1 / (1 + bandwidth)
 
@@ -60,3 +57,18 @@ def get_output(dst_path, links):
         rules[(dst_path[0], dst_path[-1])].append((s, port1, port2))
     print(ports)
     return rules
+
+
+def load_data(file, duplicate_entries=True):
+    "Stores the link data (bw, delay)"
+    with open(file, "r") as f:
+        data = {}
+        lines = f.read().strip().split("\n")
+        lines = [line.split(" ") for line in lines]
+        for row in lines:
+            node1, node2 = row[0], row[1]
+            data[(node1, node2)] = [int(row[2]), int(row[3])]
+            if(duplicate_entries):
+                data[(node2, node1)] = [int(row[2]), int(row[3])]
+
+    return data

@@ -5,24 +5,52 @@ from mininet.cli import CLI
 from mininet.log import setLogLevel
 from mininet.util import dumpNodeConnections
 from mininet.clean import cleanup
+import utils
 
 
 class MyTopo(Topo):
     def build(self):
+        links = utils.load_data("sample1.txt", duplicate_entries=False)
+        for link in links:
+            nodes = [None] * 2
+            for i in range(2):
+                if link[i][0] == "h":
+                    nodes[i] = self.addHost(link[i])
+                else:
+                    nodes[i] = self.addSwitch(link[i])
+
+            self.addLink(nodes[0], nodes[1], bw=links[link][0], delay=links[link][1])
+
         # Add hosts
-        h1 = self.addHost("h1")
-        h2 = self.addHost("h2")
+        # h1 = self.addHost("h1")
+        # h2 = self.addHost("h2")
 
-        # Add switches
-        s1 = self.addSwitch("s1")
-        s2 = self.addSwitch("s2")
-        s3 = self.addSwitch("s3")
+        # # Add switches
+        # s1 = self.addSwitch("s1")
+        # s2 = self.addSwitch("s2")
+        # s3 = self.addSwitch("s3")
 
-        # Add links
-        self.addLink(h1, s1, bw=10)
-        self.addLink(s1, s2, bw=10)
-        self.addLink(s2, s3, bw=10)
-        self.addLink(h2, s3, bw=10)
+        # # Add links
+        # self.addLink(h1, s1, bw=10)
+        # self.addLink(s1, s2, bw=10)
+        # self.addLink(s2, s3, bw=10)
+        # self.addLink(h2, s3, bw=10)
+
+        # h1 = self.addHost("h1")
+        # h2 = self.addHost("h2")
+
+        # s1 = self.addSwitch("s1")
+        # s2 = self.addSwitch("s2")
+        # s3 = self.addSwitch("s3")
+        # s4 = self.addSwitch("s4")
+
+        # self.addLink(h1, s1, bw=10)
+        # self.addLink(s1, s2, bw=10)
+        # self.addLink(s2, s4, bw=10)
+        # self.addLink(s1, s4, bw=10)
+        # self.addLink(s2, s3, bw=10)
+        # self.addLink(s3, s4, bw=10)
+        # self.addLink(s3, h2, bw=10)
 
     def main():
         pass
@@ -53,7 +81,7 @@ def run():
                 print(f"{intf.name} MAC address: {intf.MAC()}")
 
     CLI(net)
-    # net.stop()
+    net.stop()
 
     # h1 = net.get('h1')
     # h3 = net.get('h3')
@@ -87,3 +115,4 @@ if __name__ == "__main__":
     cleanup()
     setLogLevel("info")  # Tell mininet to print useful information
     run()
+    cleanup()

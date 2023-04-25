@@ -1,1 +1,0 @@
-iperf -c ip_address -t time_in_seconds -i interval_in_seconds -u -b 100M -l 1000 -p port_number
