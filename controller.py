@@ -27,7 +27,7 @@ class SimpleSwitch13(app_manager.RyuApp):
         self.lock = hub.Event()
         self.flows = []
 
-        self.orig_link_data = utils.load_data("sample1.txt")
+        self.orig_link_data = utils.load_data("topology.txt")
         self.link_data = copy.deepcopy(self.orig_link_data)
         # self.link_data = utils.load_data("sample1.txt")
 
@@ -40,10 +40,15 @@ class SimpleSwitch13(app_manager.RyuApp):
         host_mac = host_mac.replace(":", "")
         return f"h{int(host_mac, 16)}"
 
-    def get_host_by_ip(self, host_ipv4):
+    def get_host_by_ip(self, host_ip):
         for k, v in self.hosts.items():
-            if v.ipv4 and host_ipv4 in v.ipv4:
+            if v.ipv4 and host_ip in v.ipv4:
+                print(k)
                 return k
+            if v.ipv6 and host_ip in v.ipv6:
+                print(k)
+                return k
+        print("host not found")
         return None
 
     @set_ev_cls(event.EventHostAdd)

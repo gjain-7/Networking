@@ -52,7 +52,7 @@ This is an example of how to list things you need to use the software and how to
    pip install -r requirements.txt
    ```
    _Note : Make sure to keep the `eventlet` (pip package) version @0.30.2 (alreay there in requiements)_
-2. Enter the your topology in the `sample.txt`.
+2. Enter the your topology in the `topology.txt`.
 
     Format for the topology:
     - Each line contains the entry in the form 
@@ -60,11 +60,12 @@ This is an example of how to list things you need to use the software and how to
         <node1> <node2> <bandwidth> <delay>
         ```
     - `<node>` can be of form `s<switch-number>` or `h<host-number>`
-    - switch and host numbering need to begin from 1 and cannot a skip any integer in between. 
+    - Switch and Host numbering need to begin from 1 and cannot a skip any integer in between. 
         ```txt
         h1 s1 
         h2 s1
         h4 s1
+        ```
         For example, the above topology is invalid because `h3` is missing.
 3. You may modify your cost function in `utils.cost`
 
