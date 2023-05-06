@@ -118,7 +118,7 @@ class SimpleSwitch13(app_manager.RyuApp):
             match=match,
             instructions=instructions,
             out_port=out_port,
-            priority=ofproto.OFP_DEFAULT_PRIORITY,
+            priority=5,
             idle_timeout=0,
             hard_timeout=0,
             buffer_id=ofproto.OFP_NO_BUFFER,

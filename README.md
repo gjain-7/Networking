@@ -51,7 +51,7 @@ This is an example of how to list things you need to use the software and how to
    ```sh
    pip install -r requirements.txt
    ```
-   _Note : Make sure to keep the `eventlet` (pip package) version @0.30.2 (alreay there in requiements)_
+   _Note : Make sure to keep the `eventlet` (pip package) version @0.30.2 (already there in requirements)_
 2. Enter the your topology in the `topology.txt`.
 
     Format for the topology:

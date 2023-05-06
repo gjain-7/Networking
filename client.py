@@ -3,8 +3,8 @@ from ast import literal_eval
 import json
 from utils import cost
 
-main_url = "http://10.250.3.163:8080"
-# main_url = "http://127.0.0.1:8080"
+main_url = "http://127.0.0.1:8080"
+
 
 # host1:host2 :host1->S1->S2->host2
 def display_paths(paths):
@@ -15,7 +15,7 @@ def display_paths(paths):
             print(f"{value[0]}-{key} :", end="")
             print("->".join(value))
     print()
-    
+
 
 # in_port,dl_src,dl_dst actions=output
 def display_rules(rules):
@@ -33,7 +33,7 @@ def display_rules(rules):
 # <node1-node2> : <cost>
 def display_links(links):
     print("\n***************************************\n")
-    print("Netwrok Links and Cost\n")
+    print("Network Links and Cost\n")
     nodes_done = {}
     for k, v in links.items():
         if nodes_done.get(k[0] + k[1], 0) == 1:
@@ -102,6 +102,7 @@ def get_links():
         print(e)
         exit(0)
 
+
 # Minimum cost from a particular host to all other hosts
 def getMinPath():
     host = input("Enter host name: ")
@@ -113,7 +114,8 @@ def getMinPath():
         exit(0)
     res = response.json()
     display_paths(res)
-        
+
+
 # Get rules for a particular switch
 def get_rules():
     switch_num = int(input("Enter switch number: "))
@@ -126,42 +128,43 @@ def get_rules():
         exit(0)
 
 
-
 def main():
     get_links()
-    
-    
     while True:
-        t=input("\n1 Get rules for a switch\n2 Get minimum path\n3 Add Connections\n4 Exit\nEnter your choice: ")
-        if t=='1':
+        t = input(
+            "\n1 Get rules for a switch\n2 Get minimum path\n3 Add Connections\n4 Exit\nEnter your choice: "
+        )
+        if t == "1":
             get_rules()
-        elif t=='2':
+        elif t == "2":
             while 1:
                 getMinPath()
                 while 1:
                     choice = input("Do you want to continue(y/n): ")
-                    if choice not in ['y','n','Y','N']: print("Invalid Choice!")
-                    else: break
-                if choice.lower() == 'n':
-                    break
-        elif t=='3':
-                print("\n1 MAC Based\n2 IP Based\n3 Name Based")
-                n = input("\nEnter your choice: ")
-                while 1:
-                    add_connection(n)
-                    while 1:
-                        choice = input("Do you want to continue(y/n): ")
-                        if choice not in ['y','n','Y','N']: print("Invalid Choice!")
-                        else: break
-                    if choice.lower() == 'n':
+                    if choice not in ["y", "n", "Y", "N"]:
+                        print("Invalid Choice!")
+                    else:
                         break
-        elif t=='4':
-            
+                if choice.lower() == "n":
+                    break
+        elif t == "3":
+            print("\n1 MAC Based\n2 IP Based\n3 Name Based")
+            n = input("\nEnter your choice: ")
+            while 1:
+                add_connection(n)
+                while 1:
+                    choice = input("Do you want to continue(y/n): ")
+                    if choice not in ["y", "n", "Y", "N"]:
+                        print("Invalid Choice!")
+                    else:
+                        break
+                if choice.lower() == "n":
+                    break
+        elif t == "4":
             exit(0)
         else:
             print("Invalid Choice\n")
 
 
-
-if __name__=='__main__':
+if __name__ == "__main__":
     main()
